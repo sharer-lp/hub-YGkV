@@ -1,9 +1,22 @@
-```markdown
 # Git 作业提交指南
 **仓库地址：**
 - 原始仓库（老师）：https://github.com/nlp-MfyUA/hub-YGkV
 - 你的仓库（Fork）：https://github.com/sharer-lp/hub-YGkV
 ---
+
+## 0、前置代理配置
+> 解决GitHub国外网络访问慢的问题，借用vpn配置代理
+```bash
+# 1 设置/修改代理
+git config --global http.proxy http://127.0.0.1:7890
+
+# 2 查看当前代理
+git config --global --get http.proxy
+
+# 3 取消代理
+git config --global --unset http.proxy
+```
+
 ## 一、初次配置（仅需做一次）
 在终端中执行以下命令，将代码下载到本地并连接老师仓库：
 ```bash
