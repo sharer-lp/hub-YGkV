@@ -18,8 +18,6 @@
 
 ### 2.1 模型与 API 相关
 
-- **DeepSeek-V3.2**：DeepSeek 公司发布的一个大语言模型版本号。你可以把它理解成"第三代第二版"的 AI 大脑。版本号越新，能力越强、bug 越少。思考模式就是从这个版本开始原生支持的。
-
 - **API（Application Programming Interface，应用程序编程接口）**：你可以把它理解成"AI 餐厅的点餐窗口"。你（程序）不需要知道后厨怎么炒菜，只需要按菜单格式把需求递进窗口，AI 就会把结果递出来。DeepSeek API 就是 DeepSeek 公司对外开放的这个"点餐窗口"。
 
 - **base_url（基础地址）**：相当于"餐厅地址"。你要先告诉程序去哪个网址找 DeepSeek 的服务。普通功能用 `https://api.deepseek.com`，Beta（测试版）功能要用 `https://api.deepseek.com/beta`。
@@ -92,18 +90,58 @@
 | `messages` | 数组 | 无（必填） | 对话历史。每条消息是 `{"role": "system/user/assistant", "content": "..."}`。思考模式下，messages 的内容和普通模式一样写，区别只在模型内部处理方式。 |
 | `max_tokens` | 整数 | 无（建议必填） | 整个回答（思考 + 正文）的最大 token 数。**注意：思考内容也算在内！** 如果你设了 1000，模型思考用了 800，那正文只剩 200 可用，可能答案没说完就被截断。所以开思考模式时 max_tokens 要设大一点。 |
 | `stream` | 布尔值 | `false` | 是否流式输出。`true` 表示一边生成一边返回，`false` 表示全部生成完一次性返回。思考模式下流式输出体验更好，因为你能实时看到思考过程。 |
-| `thinking_budget` | 整数 | 无 | **思考模式专属参数**。给模型的"思考"过程设定一个 token 预算上限。比如设 4096，模型最多思考 4096 个 token 就必须开始正式作答。这能防止模型在某些难题上无限纠结，控制成本。 |
+| `thinking_budget` | 整数 | 无 | **注意：此参数并非通用标准，各厂商实现不同。** 控制模型"思考"过程的 token 预算上限。各厂商对应参数：① **Google Gemini**：`thinking_config.thinking_budget`（精确 token 数）；② **Anthropic Claude**：`thinking.budget_tokens`（精确 token 数）；③ **OpenAI o 系列**：`reasoning_effort: "low"/"medium"/"high"`（粗粒度等级，无法指定具体 token 数）；④ **DeepSeek**：无原生预算参数，思考深度由模型训练决定，只能通过 `max_tokens` 间接限制总输出。 |
 
 #### 3.3.2 返回参数（API 返回给你的）
 
+> **核心区别：非流式 vs 流式，返回结构不同！**
+>
+> | 模式 | 数据载体 | 特点 |
+> |------|---------|------|
+> | 非流式 `stream=False` | `response.choices[0].message` | 一次性返回完整内容 |
+> | 流式 `stream=True` | `chunk.choices[0].delta` | 逐 chunk 增量返回，需自己拼接 |
+
+**非流式返回字段（`stream=False`）：**
+
+| 字段名                                                        | 数据类型 | 出现条件 | 作用说明 |
+|------------------------------------------------------------|---------|---------|----------|
+| `choices[0].message.content`                               | 字符串 | 总是存在 | 模型的正式回答（完整），给用户看的最终答案。 |
+| `choices[0].message.reasoning_content` | 字符串/None | 仅思考模式下出现 | 模型的完整思考过程。**这是思考模式的核心字段。** 可能为 `None` 或根本不存在（模型觉得不需要思考时）。**必须用 `getattr(message, "reasoning_content", None)` 安全取值**（见下方对比）。 |
+
+> **❗ 取 `reasoning_content` 的三种方式对比（实测结果）：**
+>
+> | 写法 | 字段不存在时的表现 | 是否推荐 |
+> |------|---------------------|----------|
+> | `message.reasoning_content` | 💥 `AttributeError` 直接崩溃 | ✘ 不安全 |
+> | `message.model_extra.get("reasoning_content")` | 💥 `AttributeError`（`model_extra` 本身可能为 `None`） | ✘ 不安全 |
+> | `getattr(message, "reasoning_content", None)` | ✅ 安全返回 `None` | ✔ **推荐** |
+>
+> 结论：始终用 `getattr(message, "reasoning_content", None)`，一步到位，不会崩溃。
+| `choices[0].finish_reason`                                 | 字符串 | 总是存在 | 结束原因。`stop` = 正常结束，`length` = 被 max_tokens 截断，`tool_calls` = 模型要调用工具。 |
+| `usage.prompt_tokens`                                      | 整数 | 总是存在 | 你输入的 token 数。 |
+| `usage.completion_tokens`                                  | 整数 | 总是存在 | 模型输出的 token 数（**包含思考内容**）。 |
+| `usage.total_tokens`                                       | 整数 | 总是存在 | 输入 + 输出的总 token 数。 |
+
+**流式返回字段（`stream=True`）：**
+
 | 字段名 | 数据类型 | 出现条件 | 作用说明 |
-|--------|---------|---------|---------|
-| `choices[0].message.content` | 字符串 | 总是存在 | 模型的正式回答，也就是给用户看的最终答案。 |
-| `choices[0].message.reasoning_content` | 字符串 | 仅思考模式下出现 | 模型的思考过程。**这是思考模式区别于普通模式的核心字段。** 你可以选择展示、折叠或丢弃它。 |
-| `choices[0].finish_reason` | 字符串 | 总是存在 | 结束原因。`stop` 表示正常结束，`length` 表示被 max_tokens 截断了，`tool_calls` 表示模型要调用工具。 |
-| `usage.prompt_tokens` | 整数 | 总是存在 | 你输入的 token 数。 |
-| `usage.completion_tokens` | 整数 | 总是存在 | 模型输出的 token 数（**包含思考内容**）。 |
-| `usage.total_tokens` | 整数 | 总是存在 | 输入 + 输出的总 token 数。 |
+|--------|---------|---------|----------|
+| `chunk.choices[0].delta.content` | 字符串/None | 正文生成阶段 | 当前 chunk 新增的正文片段（几个字），需循环拼接：`full_content += delta.content`。 |
+| `chunk.choices[0].delta.reasoning_content` | 字符串/None | 思考阶段 | 当前 chunk 新增的思考片段，需循环拼接：`reasoning += delta.reasoning_content`。思考阶段结束后该字段变为 `None`，随后 `delta.content` 开始有值。 |
+| `chunk.choices[0].finish_reason` | 字符串/None | 最后一个 chunk | 含义同非流式。前面的 chunk 中该字段为 `None`，只有结束时才有值。 |
+| `chunk.usage` | 对象/None | 最后一个 chunk | 部分厂商在最后一个 chunk 中附带 usage 统计（需设置 `stream_options={"include_usage": True}`）。 |
+
+**流式思考的典型 chunk 顺序：**
+
+```
+chunk 1: delta.reasoning_content="用户问"     ← 思考阶段
+chunk 2: delta.reasoning_content="9.11和"    ← 思考阶段
+...
+chunk N: delta.reasoning_content=None, delta.content="9.8"  ← 切换到正文
+chunk N+1: delta.content="比9.11大"          ← 正文阶段
+...
+最后: delta.content=None, finish_reason="stop"  ← 结束
+```
 
 ### 3.4 思考模式的关键注意事项
 
@@ -111,6 +149,10 @@
 2. **max_tokens 要给够**：因为思考内容占额度，如果 max_tokens 设太小，可能思考没完就被截断，连正式答案都开始不了。
 3. **思考内容可能为空**：如果问题太简单，模型可能"懒得想"，`reasoning_content` 为空字符串，直接给答案。这是正常的。
 4. **思考模式与工具调用可叠加**：从 V3.2 开始，思考模式下也能用 tool_calls（详见 tool_calls 文档）。
+5. **多轮对话中 `reasoning_content` 的拼接规则（重要！）**：
+   - **无工具调用时**：在两个 user 消息之间，如果模型未进行工具调用，则中间 assistant 的 `reasoning_content` **无需**参与上下文拼接。在后续轮次中将其传入 API 会被忽略（即你可以放心丢弃它，只保留 `content` 即可）。
+   - **有工具调用时**：在两个 user 消息之间，如果模型进行了工具调用，则中间 assistant 的 `reasoning_content` **必须**参与上下文拼接，在后续所有 user 交互轮次中必须回传给 API（否则会导致上下文不连贯或报错）。
+   - **实践建议**：如果你的业务不涉及 tool_calls，多轮对话历史中只存 `content` 就够了，能显著节省 token 消耗；如果涉及工具调用，则必须完整保留 `reasoning_content` 并回传。
 
 ---
 
@@ -140,11 +182,12 @@ response = client.chat.completions.create(
 )
 
 # 3. 分别取出思考内容和正式答案
-reasoning_content = response.choices[0].message.reasoning_content
-content = response.choices[0].message.content
+message = response.choices[0].message
+reasoning_content = getattr(message, "reasoning_content", None)  # 安全取值，字段不存在时返回 None
+content = message.content  # 安全取值，字段不存在时返回 None。参数实际存在
 
 print("=== 思考过程 ===")
-print(reasoning_content)
+print(reasoning_content if reasoning_content else "(无思考内容)")
 print("\n=== 最终答案 ===")
 print(content)
 ```
@@ -155,7 +198,7 @@ print(content)
 
 - **第 2 块（发起请求）**：调用 `client.chat.completions.create(...)`，传入模型名、对话消息。`messages` 是一个列表，这里只放了一条 user 消息。模型会先思考"9.11 和 9.8 怎么比较"，再给出答案。
 
-- **第 3 块（取结果）**：`response.choices[0].message` 是模型返回的消息对象。`.reasoning_content` 取思考过程，`.content` 取正式答案。**为什么要分开取？** 因为思考过程通常很长且含中间步骤，给终端用户看会显得啰嗦，所以你可以只展示 `content`，把 `reasoning_content` 记到日志里方便调试。
+- **第 3 块（取结果）**：`response.choices[0].message` 是模型返回的消息对象。用 `getattr(message, "reasoning_content", None)` 安全取思考过程（字段可能不存在，直接 `.reasoning_content` 会报 `AttributeError`），`.content` 取正式答案。**为什么要分开取？** 因为思考过程通常很长且含中间步骤，给终端用户看会显得啰嗦，所以你可以只展示 `content`，把 `reasoning_content` 记到日志里方便调试。
 
 ### 4.2 从零跑通指南（非科班友好）
 
@@ -222,6 +265,36 @@ echo $env:DEEPSEEK_API_KEY
 ```
 
 能看到你的密钥就说明 OK。
+
+**补充：系统环境变量的利弊**
+
+优点：
+- 密钥与代码完全分离，代码可以放心上传 GitHub，不会泄露密钥。
+- 一次设置，所有项目、所有终端都能读到，不用每个项目重复配置。
+- 部署到服务器时，运维可以通过系统级环境变量统一管理，不需要改代码。
+
+缺点：
+- **全局污染**：所有程序都能读到这个变量，如果你同时做多个项目、用不同账号的 Key，会互相冲突。
+- **换电脑/重装系统就丢了**：环境变量存在操作系统里，不跟代码走，新环境要重新配一遍。
+- **协作不友好**：新同事克隆你的项目后，不知道要配哪些环境变量、叫什么名字，容易漏配导致报错。
+- **调试不方便**：变量一旦设错（多了空格、引号等），排查起来很隐蔽，不像文件那样可以直接打开看。
+
+**补充：更推荐的替代方案 —— `python-dotenv`**
+
+`python-dotenv` 是 Python 生态中管理密钥/配置的主流方案。它的思路是：把环境变量写在一个 `.env` 文件里（放在项目根目录），代码启动时自动加载这个文件里的变量到 `os.environ` 中。
+
+相比系统环境变量，它的优势：
+- **跟着项目走**：`.env` 文件就在项目目录里，换电脑只要拷贝项目文件夹就行，不用重新配系统变量。
+- **项目隔离**：每个项目有自己的 `.env`，不同项目用不同的 Key 互不干扰。
+- **协作友好**：你可以提供一个 `.env.example` 模板文件（不含真实密钥）提交到 Git，新同事复制一份改上自己的 Key 就能跑，零沟通成本。
+- **安全可控**：只需在 `.gitignore` 中加一行 `.env`，就能确保真实密钥永远不会被提交到版本库。
+- **直观可查**：配置就是一个纯文本文件，打开就能看到所有变量，调试时一目了然。
+
+它的劣势（很小）：
+- 需要额外安装一个包（`pip install python-dotenv`），并在代码开头加一行加载语句。
+- 生产环境部署时，通常还是用系统环境变量或密钥管理服务（如 Vault、云平台 Secret Manager），`.env` 文件更适合本地开发和测试阶段。
+
+**总结：本地开发用 `.env` + `python-dotenv`，生产部署用系统环境变量或专业密钥管理服务。** 两者不矛盾，`python-dotenv` 加载时不会覆盖已存在的系统环境变量，所以同一套代码在两种环境下都能正常工作。
 
 #### 第五步：写代码并运行
 

@@ -161,10 +161,12 @@ for chunk in stream:
 
     delta = choice.delta
 
-    # reasoning 内容（若模型返回）
-    if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-        reasoning_content += delta.reasoning_content
-        print(delta.reasoning_content, end="", flush=True)
+    # reasoning 内容（流式下从 delta 上逐 chunk 取，需累积拼接）
+    # 注意：非流式是从 message 上一次性取完整值，见 01_基础调用.py
+    chunk_reasoning = getattr(delta, "reasoning_content", None)
+    if chunk_reasoning:
+        reasoning_content += chunk_reasoning
+        print(chunk_reasoning, end="", flush=True)
 
     # 常规内容
     if delta.content:

@@ -1,7 +1,7 @@
 """
 MCP Server — 模型上下文协议 (Model Context Protocol) 服务端
 
-MCP 是什么？
+MCP 是什么？   补充Streamable HTTP
   MCP (Model Context Protocol) 是 Anthropic 提出的开放协议，为 AI 模型提供了
   与外部工具、数据源交互的标准化接口。类似于 USB 协议统一了设备连接，
   MCP 统一了 AI 与工具的连接方式。

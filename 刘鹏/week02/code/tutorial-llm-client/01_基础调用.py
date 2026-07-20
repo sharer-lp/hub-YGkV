@@ -69,10 +69,22 @@ print()
 print("【最终回复】")
 print(response.choices[0].message.content)
 
-# 思考过程（reasoning_content 在 model_extra 中）
-# getattr 已经包含了从 model_extra 中查找的能力
-# hasattr：语义更明确，一眼就能看出"我在判断这个字段存不存在"
-# getattr：代码更紧凑，判断和取值合成了一步
+# ─────────────────────────────────────────────────────────
+# 获取思考内容（reasoning_content）—— 流式 vs 非流式的区别：
+#
+# 【非流式 stream=False】
+#   数据在 response.choices[0].message 中，一次性返回完整内容。
+#   取值方式：getattr(message, "reasoning_content", None)
+#   用 getattr 而非直接 .reasoning_content，是因为该字段可能不存在或为 None。
+#
+# 【流式 stream=True】（见 02_流式输出.py）
+#   数据在 chunk.choices[0].delta 中，逐 chunk 增量返回。
+#   取值方式：getattr(delta, "reasoning_content", None)，需循环拼接：
+#     reasoning_content += delta.reasoning_content
+#   流式下每个 chunk 只包含"新增的几个字"，要自己累积成完整文本。
+#
+# 总结：非流式 → message 上取（完整）；流式 → delta 上取（增量拼接）
+# ─────────────────────────────────────────────────────────
 message = response.choices[0].message
 reasoning = getattr(message, "reasoning_content", None)
 

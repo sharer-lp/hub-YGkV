@@ -75,7 +75,7 @@ def self_consistency_age():
     print("=" * 60)
 
     question = "When I was 6 my sister was half my age. Now I'm 70 how old is my sister?"
-    system_prompt = "解决以下问题，逐步推理，最后给出"答案是 X"的格式。"
+    system_prompt = "解决以下问题，逐步推理，最后给出'答案是 X'的格式。"
 
     outputs = sample_answers(question, system_prompt, n=5, temperature=0.8)
 
@@ -109,7 +109,7 @@ def self_consistency_math():
     print("=" * 60)
 
     question = "小明买了一个 35 元的书包和 3 本 12 元的书，付了 100 元，应找回多少钱？"
-    system_prompt = "解决以下数学问题，逐步推理，最后给出"答案是 X"的格式。"
+    system_prompt = "解决以下数学问题，逐步推理，最后给出'答案是 X'的格式。"
 
     outputs = sample_answers(question, system_prompt, n=5, temperature=0.7)
 
