@@ -70,10 +70,11 @@ print("【最终回复】")
 print(response.choices[0].message.content)
 
 # 思考过程（reasoning_content 在 model_extra 中）
+# getattr 已经包含了从 model_extra 中查找的能力
+# hasattr：语义更明确，一眼就能看出"我在判断这个字段存不存在"
+# getattr：代码更紧凑，判断和取值合成了一步
 message = response.choices[0].message
-reasoning = getattr(message, "reasoning_content", None) or (
-    message.model_extra.get("reasoning_content") if message.model_extra else None
-)
+reasoning = getattr(message, "reasoning_content", None)
 
 if reasoning:
     print("\n【思考过程】")
