@@ -2,3 +2,12 @@
 /刘鹏/week02/code/.claude/
 /刘鹏/week02/code/src/
 /刘鹏/week02/code/asserts/
+
+
+# 环境变量文件（含密钥，禁止提交）
+.env
+.env.dev
+.env.prod
+.env.models
+# 但保留模板文件
+!.env.example
