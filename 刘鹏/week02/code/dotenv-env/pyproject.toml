@@ -1,0 +1,23 @@
+[project]
+name = "dotenv-env"
+version = "2.0.0"
+description = "多环境 + 多模型 + 多格式 生产级 LLM 客户端封装"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "python-dotenv>=1.0.0",
+    "openai>=1.0.0",
+]
+
+[project.optional-dependencies]
+# Anthropic 格式支持（Claude）
+anthropic = ["anthropic>=0.30.0"]
+# 全部安装
+all = ["anthropic>=0.30.0"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["dotenv_env*"]

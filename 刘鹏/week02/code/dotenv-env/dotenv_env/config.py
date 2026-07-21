@@ -1,16 +1,7 @@
 """
-生产级多环境 + 多模型配置管理
+生产级多环境 + 多模型 + 多格式 配置管理
 
 ==================== 架构设计 ====================
-
-文件结构：
-    dotenv-env/
-    ├── .env              ← 通用默认配置（所有环境共享）
-    ├── .env.dev          ← 开发环境覆盖
-    ├── .env.prod         ← 生产环境覆盖
-    ├── .env.models       ← 多模型密钥与连接（独立管理）
-    ├── .env.example      ← 模板（提交到 Git）
-    └── config.py         ← 本文件
 
 加载优先级（后加载的覆盖先加载的）：
     系统环境变量 > .env.{APP_ENV} > .env.models > .env
@@ -18,11 +9,15 @@
 环境切换：
     方式1：系统环境变量  APP_ENV=prod python main.py
     方式2：PowerShell    $env:APP_ENV="prod"; python main.py
-    方式3：.env 中写     APP_ENV=prod（不推荐，失去了环境隔离意义）
 
 多模型切换：
-    .env.models 中修改 ACTIVE_MODEL=deepseek / qwen / openai
+    .env.models 中修改 ACTIVE_MODEL=deepseek / qwen / claude
     或系统环境变量 ACTIVE_MODEL=qwen python main.py
+
+多格式支持：
+    每个模型通过 {MODEL}_PROVIDER 指定 API 格式：
+        - openai    → OpenAI Chat Completions 格式（DeepSeek / Qwen）
+        - anthropic → Anthropic Messages 格式（Claude）
 
 ==================================================
 """
@@ -46,12 +41,16 @@ class ConfigError(Exception):
 class ModelConfig:
     """单个模型的连接配置"""
     name: str           # 别名，如 "deepseek"
+    provider: str       # API 格式："openai" | "anthropic"
     api_key: str
     base_url: str
     model: str
 
     def __repr__(self):
-        return f"ModelConfig(name={self.name!r}, model={self.model!r}, base_url={self.base_url!r}, api_key=***)"
+        return (
+            f"ModelConfig(name={self.name!r}, provider={self.provider!r}, "
+            f"model={self.model!r}, base_url={self.base_url!r}, api_key=***)"
+        )
 
 
 # ==================== 配置主类 ====================
@@ -61,7 +60,7 @@ class Config:
     生产级配置管理（多环境 + 多模型）
 
     用法：
-        from config import cfg
+        from dotenv_env import cfg
 
         # 获取当前激活模型
         cfg.active_model          # ModelConfig 对象
@@ -75,11 +74,18 @@ class Config:
         cfg.TIMEOUT
     """
 
-    # 项目根目录（config.py 所在目录）
-    _BASE_DIR = Path(__file__).resolve().parent
+    # 项目根目录（.env 文件所在目录 = dotenv_env/ 的上一级）
+    _BASE_DIR = Path(__file__).resolve().parent.parent
 
     # 已注册的模型别名列表（可扩展）
-    KNOWN_MODELS = ["deepseek", "qwen", "openai"]
+    KNOWN_MODELS = ["deepseek", "qwen", "claude"]
+
+    # provider 默认值映射（未在 .env.models 中显式指定时的回退）
+    DEFAULT_PROVIDERS = {
+        "deepseek": "openai",
+        "qwen": "openai",
+        "claude": "anthropic",
+    }
 
     def __init__(self):
         self._load_env_files()
@@ -147,19 +153,28 @@ class Config:
         """
         从环境变量中加载所有已注册模型
 
-        命名规则：{ALIAS}_API_KEY / {ALIAS}_BASE_URL / {ALIAS}_MODEL
-        例如：DEEPSEEK_API_KEY, QWEN_BASE_URL, OPENAI_MODEL
+        命名规则：{ALIAS}_API_KEY / {ALIAS}_BASE_URL / {ALIAS}_MODEL / {ALIAS}_PROVIDER
+        例如：DEEPSEEK_API_KEY, QWEN_BASE_URL, CLAUDE_PROVIDER
+
+        provider 决定使用哪种 API 格式：
+            - "openai"    → OpenAI Chat Completions 格式（DeepSeek / Qwen）
+            - "anthropic" → Anthropic Messages 格式（Claude）
         """
         for alias in self.KNOWN_MODELS:
             prefix = alias.upper()
             api_key = os.getenv(f"{prefix}_API_KEY", "")
             base_url = os.getenv(f"{prefix}_BASE_URL", "")
             model = os.getenv(f"{prefix}_MODEL", "")
+            provider = os.getenv(
+                f"{prefix}_PROVIDER",
+                self.DEFAULT_PROVIDERS.get(alias, "openai")
+            ).lower()
 
             # 只注册有 API_KEY 的模型（允许部分模型未配置）
             if api_key:
                 self._models[alias] = ModelConfig(
                     name=alias,
+                    provider=provider,
                     api_key=api_key,
                     base_url=base_url,
                     model=model,
@@ -241,7 +256,7 @@ class Config:
         return value.strip().lower() in ("true", "1", "yes", "on")
 
     def __repr__(self):
-        sensitive_keys = {"KEY", "SECRET", "PASSWORD", "TOKEN"}
+        sensitive_keys = {"API_KEY", "SECRET", "PASSWORD", "ACCESS_TOKEN"}
         lines = [
             f"【当前配置】环境={self.APP_ENV} | 激活模型={self._active_model_name}",
             f"  可用模型: {self.available_models}",
