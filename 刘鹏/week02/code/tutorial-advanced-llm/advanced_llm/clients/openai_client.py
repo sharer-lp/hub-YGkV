@@ -191,18 +191,39 @@ class OpenAIClient(BaseLLMClient):
         if stream:
             kwargs["stream_options"] = {"include_usage": True}
 
-        # 【重要限制】思考模式下不支持 temperature / top_p（DeepSeek 官方限制）
-        # 原因：思考模式需要确定性推理，随机性会干扰思考过程
-        if not thinking:
+        # ==================== temperature 参数处理 ====================
+        # 【核心兼容性逻辑】
+        # 不同模型对 temperature 的要求完全不同：
+        #   - Kimi K2.7-code: 只允许 temperature=1.0（固定值，传其他报错）
+        #   - Kimi K2.6/K2.5: 思考模式=1.0，非思考=0.6（固定值）
+        #   - DeepSeek 思考模式: 不允许传 temperature
+        #   - 其他模型: 正常支持自定义 temperature
+        #
+        # 处理策略（优先级从高到低）：
+        #   1. fixed_params 中有 temperature → 使用固定值（模型硬性要求）
+        #   2. 思考模式且不支持固定 temperature → 不传（DeepSeek 限制）
+        #   3. 其他情况 → 使用用户传入值或全局配置
+        if "temperature" in self.fixed_params:
+            # 模型有固定 temperature 要求（如 Kimi K2 系列）
+            kwargs["temperature"] = self.fixed_params["temperature"]
+        elif not thinking:
+            # 非思考模式：正常设置 temperature
             kwargs["temperature"] = temperature if temperature is not None else cfg.TEMPERATURE
+        # else: 思考模式且无固定约束 → 不传 temperature（DeepSeek 限制）
 
         # 厂商私有参数（通过 extra_body 传递）
         extra = self._build_extra_body(enable_thinking=thinking)
         if extra:
             kwargs["extra_body"] = extra
 
-        # 思考强度（仅思考模式生效）
-        if thinking and self.supports_thinking:
+        # 思考强度（仅对支持 reasoning_effort 参数的模型生效）
+        # 【兼容性说明】
+        #   - OpenAI o系列: 支持 reasoning_effort="low/medium/high"
+        #   - Kimi K3: 支持 reasoning_effort="max"（仅此一个值）
+        #   - Kimi K2.7-code: 不支持 reasoning_effort（传入会报错）
+        #   - DeepSeek: 通过 extra_body 控制思考，不用 reasoning_effort
+        # 因此只有 thinking_param_type == "reasoning_effort" 的模型才发送此参数
+        if thinking and self.thinking_param_type == "reasoning_effort":
             kwargs["reasoning_effort"] = cfg.REASONING_EFFORT
 
         # 工具调用参数

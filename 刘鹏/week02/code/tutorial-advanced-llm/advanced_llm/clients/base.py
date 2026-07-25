@@ -117,6 +117,7 @@ class BaseLLMClient(ABC):
         self.enable_thinking = cfg.ENABLE_THINKING          # 全局思考开关
         self.supports_thinking = model_cfg.supports_thinking  # 该模型是否支持思考
         self.thinking_param_type = model_cfg.thinking_param_type  # 思考参数类型
+        self.fixed_params = model_cfg.fixed_params          # 模型参数约束（如 temperature 固定值）
 
     # ==================== 必须实现（抽象方法） ====================
     # 【知识点：@abstractmethod 装饰器】

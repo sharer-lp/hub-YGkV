@@ -116,6 +116,12 @@ class ModelConfig:
     #   "budget_tokens"    → Anthropic: thinking={"type": "enabled", "budget_tokens": N}
     #   "none"             → 不支持思考控制（Qwen / Kimi）
     thinking_param_type: str = "none"
+    # ---- 参数约束相关 ----
+    # 某些模型对请求参数有硬性限制（如 Kimi K2 系列只接受 temperature=1.0）。
+    # fixed_params 中声明的参数将覆盖用户配置和全局配置，确保不会传入非法值。
+    # 格式：{"参数名": 固定值}，如 {"temperature": 1.0}
+    # 空字典表示无约束（大多数模型）。
+    fixed_params: dict = field(default_factory=dict)
 
     def __repr__(self):
         """自定义打印格式（脱敏 API Key）
@@ -209,8 +215,39 @@ class Config:
     THINKING_SUPPORT = {
         "deepseek": True,
         "qwen": False,
-        "kimi": False,
+        "kimi": True,           # Kimi K2 系列默认开启思考
         "claude": True,
+    }
+
+    # ==================== 模型参数约束 ====================
+    # 【设计思想：声明式参数约束】
+    #   不同模型对请求参数有各自的硬性限制：
+    #     - Kimi K2.7-code: temperature 只允许 1.0（思考模型，固定采样参数）
+    #     - Kimi K2.6/K2.5: 思考模式 temperature=1.0，非思考模式 temperature=0.6
+    #     - DeepSeek 思考模式: 不允许传 temperature
+    #   通过 fixed_params 声明这些约束，客户端构建参数时自动应用，
+    #   避免用户手动处理每个模型的差异。
+    #
+    # 【各模型参数约束详情（2026-07 最新）】
+    #   kimi-k2.7-code / kimi-k2.7-code-highspeed:
+    #     - temperature=1.0（固定，传其他值报错）
+    #     - top_p=0.95（固定）
+    #     - presence_penalty=0.0 / frequency_penalty=0.0（固定）
+    #     - 思考默认开启，stream_options 仅支持 true
+    #   kimi-k2.6 / kimi-k2.5:
+    #     - 思考模式: temperature=1.0（固定）
+    #     - 非思考模式: temperature=0.6（固定）
+    #     - 传其他值报错，建议不显式设置
+    #   deepseek-chat / deepseek-reasoner:
+    #     - 思考模式下不支持 temperature / top_p
+    #     - 非思考模式下正常支持
+    MODEL_PARAM_CONSTRAINTS: dict[str, dict] = {
+        "deepseek": {},     # 无固定约束（思考模式下由客户端逻辑自动跳过 temperature）
+        "qwen": {},         # 千问无特殊约束
+        "kimi": {           # Kimi K2 系列：采样参数固定
+            "temperature": 1.0,
+        },
+        "claude": {},       # Claude 无特殊固定参数约束
     }
 
     def __init__(self):
@@ -321,6 +358,7 @@ class Config:
                     model=model,
                     supports_thinking=self.THINKING_SUPPORT.get(alias, False),
                     thinking_param_type=self.THINKING_PARAM_TYPES.get(alias, "none"),
+                    fixed_params=self.MODEL_PARAM_CONSTRAINTS.get(alias, {}),
                 )
 
     # ==================== 公开接口 ====================
