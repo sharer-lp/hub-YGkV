@@ -7,6 +7,7 @@
       <excludeFolder url="file://$MODULE_DIR$/刘鹏/week02/code/.agents" />
       <excludeFolder url="file://$MODULE_DIR$/刘鹏/week02/code/.claude" />
       <excludeFolder url="file://$MODULE_DIR$/刘鹏/week02/code/src" />
+      <excludeFolder url="file://$MODULE_DIR$/.venv" />
     </content>
     <orderEntry type="jdk" jdkName="py312" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
