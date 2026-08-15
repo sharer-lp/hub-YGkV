@@ -1,14 +1,18 @@
-from pydantic import BaseModel, Field
-from typing import Dict, List, Any, Union, Optional
+"""
+请求/响应数据模型定义
 
-# pydantic 数据类型，项目代码、 ai项目推荐的写法
-# typing 类型注解
+使用 pydantic 进行数据校验，AI 项目推荐写法。
+"""
+from pydantic import BaseModel, Field
+from typing import List, Union, Optional
+
+
 class TextClassifyRequest(BaseModel):
     """
     请求格式
     """
-    request_id: Optional[str] = Field(..., description="请求id, 方便调试") # 可选
-    request_text: Union[str, List[str]] = Field(..., description="请求文本、字符串或列表") # 可是是str， list【str】
+    request_id: Optional[str] = Field(..., description="请求id, 方便调试")
+    request_text: Union[str, List[str]] = Field(..., description="请求文本、字符串或列表")
 
 
 class TextClassifyResponse(BaseModel):

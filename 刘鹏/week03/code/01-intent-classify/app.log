@@ -1287,3 +1287,10 @@ asyncio.exceptions.CancelledError
 2026-02-01 15:48:41,201 - httpx - INFO - HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
 2026-02-01 15:49:26,720 - httpx - INFO - HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
 2026-02-01 15:49:27,231 - httpx - INFO - HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-07-30 23:56:09,098 - app.logger - INFO - test-001 帮我播放电视剧
+2026-07-30 23:56:17,091 - app.logger - INFO - Get request: {"request_id":"test-002","request_text":"帮我播放周杰伦的歌曲"}
+2026-07-30 23:56:18,598 - app.logger - INFO - TF-IDF 模型加载完成
+2026-07-30 23:56:18,598 - jieba - DEBUG - Building prefix dict from the default dictionary ...
+2026-07-30 23:56:18,600 - jieba - DEBUG - Loading model from cache C:\Users\leyou\AppData\Local\Temp\jieba.cache
+2026-07-30 23:56:19,185 - jieba - DEBUG - Loading model cost 0.587 seconds.
+2026-07-30 23:56:19,186 - jieba - DEBUG - Prefix dict has been built successfully.

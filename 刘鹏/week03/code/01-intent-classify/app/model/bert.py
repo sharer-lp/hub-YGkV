@@ -1,13 +1,16 @@
+"""
+BERT 深度学习分类模型
+
+基于 bert-base-chinese 预训练模型进行意图分类。
+"""
 from typing import Union, List
 
 import numpy as np
-import pandas as pd
 import torch
 from torch.utils.data import Dataset, DataLoader
+from transformers import AutoTokenizer, BertForSequenceClassification
 
-from transformers import AutoTokenizer, AutoModelForMaskedLM, BertForSequenceClassification
-
-from config import BERT_MODEL_PERTRAINED_PATH, BERT_MODEL_PKL_PATH, CATEGORY_NAME
+from app.config import BERT_MODEL_PERTRAINED_PATH, BERT_MODEL_PKL_PATH, CATEGORY_NAME
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 tokenizer = AutoTokenizer.from_pretrained(BERT_MODEL_PERTRAINED_PATH)
@@ -41,7 +44,6 @@ def model_for_bert(request_text: Union[str, List[str]]) -> Union[str, List[str]]
         pass
     else:
         raise Exception("格式不支持")
-
 
     test_encoding = tokenizer(list(request_text), truncation=True, padding=True, max_length=30)
     test_dataset = NewsDataset(test_encoding, [0] * len(request_text))

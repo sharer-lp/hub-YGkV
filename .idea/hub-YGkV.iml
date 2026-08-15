@@ -4,6 +4,7 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/刘鹏/week02/code/dotenv-env" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/刘鹏/week02/code/tutorial-advanced-llm" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/刘鹏/week03/code/01-intent-classify" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/刘鹏/week02/code/.agents" />
       <excludeFolder url="file://$MODULE_DIR$/刘鹏/week02/code/.claude" />
       <excludeFolder url="file://$MODULE_DIR$/刘鹏/week02/code/src" />
