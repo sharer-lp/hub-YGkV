@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import csv
+import os
+import time
 from datasets import Dataset
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -17,9 +20,9 @@ dataset_df = dataset_df.sample(frac=1, random_state=42).reset_index(drop=True)
 # 初始化 LabelEncoder，用于将文本标签转换为数字标签
 lbl = LabelEncoder()
 # 拟合数据并转换前500个标签，得到数字标签
-labels = lbl.fit_transform(dataset_df[1].values[:500])
+labels = lbl.fit_transform(dataset_df[1].values[:1000])
 # 提取前500个文本内容
-texts = list(dataset_df[0].values[:500])
+texts = list(dataset_df[0].values[:1000])
 
 # 分割数据为训练集和测试集
 x_train, x_test, train_labels, test_labels = train_test_split(texts,  # 文本数据
@@ -61,6 +64,52 @@ def compute_metrics(eval_pred):
     return {'accuracy': (predictions == labels).mean()}
 
 
+def append_experiment_record(trainer, eval_result):
+    """把本次实验的超参数和指标自动追加到 experiments.csv。"""
+    log_history = trainer.state.log_history
+    train_loss = next(
+        (entry.get("loss") for entry in reversed(log_history) if "loss" in entry),
+        "",
+    )
+    train_runtime = next(
+        (
+            entry.get("train_runtime")
+            for entry in reversed(log_history)
+            if "train_runtime" in entry
+        ),
+        "",
+    )
+
+    row = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "learning_rate": training_args.learning_rate,
+        "num_train_epochs": training_args.num_train_epochs,
+        "batch_size": training_args.per_device_train_batch_size,
+        "warmup_steps": training_args.warmup_steps,
+        "weight_decay": training_args.weight_decay,
+        "max_length": 64,
+        "test_size": 0.2,
+        "data_size": len(texts),
+        "num_labels": len(lbl.classes_),
+        "eval_accuracy": eval_result.get("eval_accuracy", ""),
+        "eval_loss": eval_result.get("eval_loss", ""),
+        "train_loss": train_loss,
+        "train_runtime": train_runtime,
+        "best_metric": trainer.state.best_metric,
+        "best_global_step": trainer.state.best_global_step,
+        "output_dir": training_args.output_dir,
+    }
+
+    fieldnames = list(row.keys())
+    file_exists = os.path.isfile("experiments.csv")
+    with open("experiments.csv", "a", newline="", encoding="utf-8-sig") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+    print("实验记录已追加到 experiments.csv")
+
+
 # 配置训练参数
 training_args = TrainingArguments(output_dir='./results',  # 训练输出目录，用于保存模型和状态
     num_train_epochs=4,  # 训练的总轮数
@@ -76,7 +125,8 @@ training_args = TrainingArguments(output_dir='./results',  # 训练输出目录�
     load_best_model_at_end=True,  # 训练结束后加载效果最好的模型
     metric_for_best_model="accuracy",  # 用于确定最佳模型的指标
     save_total_limit=1,  # 保存的模型数量上限
-    report_to=[], # 不向wandb等平台上报日志，纯本地运行
+    max_grad_norm=1.0,  # 梯度裁剪，防止梯度爆炸
+    report_to=["tensorboard"],  # 启用 TensorBoard，训练时向 ./logs 写事件文件
     # max_steps=2,     # 用于确认整个链路通不通
     # report_to=[], # 用于确认整个链路通不通
 )
@@ -94,7 +144,8 @@ trainer = Trainer(model=model,  # 要训练的模型
 # 开始训练模型
 trainer.train()
 # 在测试集上进行最终评估
-trainer.evaluate()
+eval_result = trainer.evaluate()
+append_experiment_record(trainer, eval_result)
 
 # trainer 是比较简单，适合训练过程比较规范化的模型
 # 如果我要定制化训练过程，trainer无法满足
